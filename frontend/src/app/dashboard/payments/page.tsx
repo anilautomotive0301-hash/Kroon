@@ -1,12 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { campusApi, paymentsApi } from '@/lib/api';
+import { campusApi, api } from '@/lib/api';
 import type { Campus } from '@/types';
 import { ShoppingBag } from 'lucide-react';
-
-// Dynamically import paymentsApi
-import { api } from '@/lib/api';
 
 export default function PaymentsPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
