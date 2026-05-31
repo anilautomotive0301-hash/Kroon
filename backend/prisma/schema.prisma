@@ -1,0 +1,466 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  FIELD_STAFF
+  TAILOR
+  ACCOUNTANT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum VisitStatus {
+  SCHEDULED
+  STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ImportStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum WorkflowState {
+  REGISTERED
+  MEASUREMENT_PENDING
+  MEASURED
+  SIZE_ASSIGNED
+  PENDING_APPROVAL
+  APPROVED
+  FABRIC_ALLOCATED
+  TAILOR_ASSIGNED
+  STITCHING
+  QUALITY_CHECK
+  DISPATCHED
+  DELIVERED
+  REWORK
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum StitchingStatus {
+  PENDING
+  IN_PROGRESS
+  QUALITY_PENDING
+  QUALITY_PASSED
+  QUALITY_FAILED
+  REWORK
+  COMPLETED
+}
+
+enum DispatchStatus {
+  PENDING
+  PACKED
+  DISPATCHED
+  DELIVERED
+  PARTIAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+// ─── Auth & Users ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  phone        String?
+  password     String
+  role         Role     @default(FIELD_STAFF)
+  isActive     Boolean  @default(true)
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedVisits      CampusVisit[]      @relation("VisitAssignee")
+  measurements        Measurement[]      @relation("MeasurementTaker")
+  sizeAssignments     SizeAssignment[]   @relation("SizeAssigner")
+  approvedSizes       SizeAssignment[]   @relation("SizeApprover")
+  approvalRequests    ApprovalRequest[]  @relation("ApprovalRequester")
+  supervisedApprovals ApprovalRequest[]  @relation("ApprovalSupervisor")
+  workflowChanges     WorkflowHistory[]
+  auditLogs           AuditLog[]
+  fabricStockEntries  FabricStock[]
+  fabricConsumptions  FabricConsumption[]
+  tailorAssignments   TailorAssignment[] @relation("TailorUser")
+  stitchingJobs       StitchingJob[]     @relation("StitchingTailor")
+  qualityChecks       StitchingJob[]     @relation("QualityChecker")
+  reworkReports       Rework[]
+  dispatchOrders      DispatchOrder[]
+  importBatches       ImportBatch[]
+}
+
+// ─── Campus ───────────────────────────────────────────────────────────────────
+
+model Campus {
+  id           String   @id @default(cuid())
+  name         String
+  code         String   @unique
+  address      String
+  city         String
+  state        String
+  contactName  String
+  contactPhone String
+  contactEmail String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  students  Student[]
+  visits    CampusVisit[]
+  invoices  SchoolInvoice[]
+  dispatches DispatchOrder[]
+}
+
+model CampusVisit {
+  id           String      @id @default(cuid())
+  campusId     String
+  campus       Campus      @relation(fields: [campusId], references: [id])
+  scheduledAt  DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  status       VisitStatus @default(SCHEDULED)
+  notes        String?
+  assignedToId String
+  assignedTo   User        @relation("VisitAssignee", fields: [assignedToId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  measurements Measurement[]
+}
+
+// ─── Student Import ───────────────────────────────────────────────────────────
+
+model ImportBatch {
+  id           String       @id @default(cuid())
+  campusId     String
+  fileName     String
+  totalRows    Int
+  successRows  Int          @default(0)
+  failedRows   Int          @default(0)
+  status       ImportStatus @default(PROCESSING)
+  uploadedById String
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime     @default(now())
+
+  students Student[]
+}
+
+// ─── Students ─────────────────────────────────────────────────────────────────
+
+model Student {
+  id            String       @id @default(cuid())
+  campusId      String
+  campus        Campus       @relation(fields: [campusId], references: [id])
+  studentCode   String
+  name          String
+  class         String
+  section       String?
+  gender        Gender
+  age           Int?
+  parentName    String?
+  parentPhone   String?
+  qrCode        String?      @unique
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  measurements   Measurement[]
+  sizeAssignment SizeAssignment?
+  workflow       StudentWorkflow?
+  payments       Payment[]
+  dispatchItems  DispatchItem[]
+
+  @@unique([campusId, studentCode])
+}
+
+// ─── Measurements ─────────────────────────────────────────────────────────────
+
+model Measurement {
+  id            String       @id @default(cuid())
+  studentId     String
+  student       Student      @relation(fields: [studentId], references: [id])
+  measuredById  String
+  measuredBy    User         @relation("MeasurementTaker", fields: [measuredById], references: [id])
+  visitId       String?
+  visit         CampusVisit? @relation(fields: [visitId], references: [id])
+
+  // All in cm
+  chest         Float?
+  waist         Float?
+  hip           Float?
+  shoulder      Float?
+  sleeveLength  Float?
+  shirtLength   Float?
+  trouserLength Float?
+  inseam        Float?
+  neck          Float?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SizeAssignment {
+  id           String    @id @default(cuid())
+  studentId    String    @unique
+  student      Student   @relation(fields: [studentId], references: [id])
+
+  shirtSize    String?
+  trouserSize  String?
+  blazerSize   String?
+  tieSize      String?
+  customNotes  String?
+  isCustom     Boolean   @default(false)
+
+  assignedById String
+  assignedBy   User      @relation("SizeAssigner", fields: [assignedById], references: [id])
+  approvedById String?
+  approvedBy   User?     @relation("SizeApprover", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+// ─── Workflow ─────────────────────────────────────────────────────────────────
+
+model StudentWorkflow {
+  id           String        @id @default(cuid())
+  studentId    String        @unique
+  student      Student       @relation(fields: [studentId], references: [id])
+  currentState WorkflowState @default(REGISTERED)
+  updatedAt    DateTime      @updatedAt
+
+  history         WorkflowHistory[]
+  approvalRequest ApprovalRequest?
+}
+
+model WorkflowHistory {
+  id          String          @id @default(cuid())
+  workflowId  String
+  workflow    StudentWorkflow @relation(fields: [workflowId], references: [id])
+  fromState   WorkflowState
+  toState     WorkflowState
+  changedById String
+  changedBy   User            @relation(fields: [changedById], references: [id])
+  reason      String?
+  createdAt   DateTime        @default(now())
+}
+
+model ApprovalRequest {
+  id            String          @id @default(cuid())
+  workflowId    String          @unique
+  workflow      StudentWorkflow @relation(fields: [workflowId], references: [id])
+  requestedById String
+  requestedBy   User            @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  supervisorId  String?
+  supervisor    User?           @relation("ApprovalSupervisor", fields: [supervisorId], references: [id])
+  status        ApprovalStatus  @default(PENDING)
+  notes         String?
+  reviewedAt    DateTime?
+  createdAt     DateTime        @default(now())
+}
+
+// ─── Inventory ────────────────────────────────────────────────────────────────
+
+model FabricItem {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  unit        String   @default("meters")
+  unitPrice   Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockEntries FabricStock[]
+  consumptions FabricConsumption[]
+}
+
+model FabricStock {
+  id           String     @id @default(cuid())
+  fabricItemId String
+  fabricItem   FabricItem @relation(fields: [fabricItemId], references: [id])
+  quantity     Float
+  receivedDate DateTime   @default(now())
+  supplierName String?
+  invoiceNo    String?
+  notes        String?
+  addedById    String
+  addedBy      User       @relation(fields: [addedById], references: [id])
+  createdAt    DateTime   @default(now())
+}
+
+model FabricConsumption {
+  id           String     @id @default(cuid())
+  fabricItemId String
+  fabricItem   FabricItem @relation(fields: [fabricItemId], references: [id])
+  quantity     Float
+  tailorJobId  String?
+  notes        String?
+  recordedById String
+  recordedBy   User       @relation(fields: [recordedById], references: [id])
+  createdAt    DateTime   @default(now())
+}
+
+// ─── Production ───────────────────────────────────────────────────────────────
+
+model TailorAssignment {
+  id        String          @id @default(cuid())
+  tailorId  String
+  tailor    User            @relation("TailorUser", fields: [tailorId], references: [id])
+  campusId  String?
+  batchName String?
+  status    StitchingStatus @default(PENDING)
+  dueDate   DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  stitchingJobs StitchingJob[]
+}
+
+model StitchingJob {
+  id                 String          @id @default(cuid())
+  assignmentId       String
+  assignment         TailorAssignment @relation(fields: [assignmentId], references: [id])
+  studentId          String
+  tailorId           String
+  tailor             User            @relation("StitchingTailor", fields: [tailorId], references: [id])
+  status             StitchingStatus @default(PENDING)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  qualityCheckedAt   DateTime?
+  qualityCheckedById String?
+  qualityChecker     User?           @relation("QualityChecker", fields: [qualityCheckedById], references: [id])
+  qualityNotes       String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  reworks Rework[]
+}
+
+model Rework {
+  id           String       @id @default(cuid())
+  jobId        String
+  job          StitchingJob @relation(fields: [jobId], references: [id])
+  reason       String
+  description  String?
+  reportedById String
+  reportedBy   User         @relation(fields: [reportedById], references: [id])
+  resolvedAt   DateTime?
+  createdAt    DateTime     @default(now())
+}
+
+// ─── Dispatch ─────────────────────────────────────────────────────────────────
+
+model DispatchOrder {
+  id           String         @id @default(cuid())
+  campusId     String
+  campus       Campus         @relation(fields: [campusId], references: [id])
+  dispatchDate DateTime?
+  deliveryDate DateTime?
+  status       DispatchStatus @default(PENDING)
+  vehicleNo    String?
+  driverName   String?
+  notes        String?
+  createdById  String
+  createdBy    User           @relation(fields: [createdById], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  items DispatchItem[]
+}
+
+model DispatchItem {
+  id              String        @id @default(cuid())
+  dispatchOrderId String
+  dispatchOrder   DispatchOrder @relation(fields: [dispatchOrderId], references: [id])
+  studentId       String
+  student         Student       @relation(fields: [studentId], references: [id])
+  uniformType     String
+  quantity        Int           @default(1)
+  receivedById    String?
+  receivedAt      DateTime?
+  createdAt       DateTime      @default(now())
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+model Payment {
+  id            String        @id @default(cuid())
+  studentId     String
+  student       Student       @relation(fields: [studentId], references: [id])
+  amount        Float
+  status        PaymentStatus @default(PENDING)
+  method        String?
+  transactionId String?
+  paidAt        DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model SchoolInvoice {
+  id        String        @id @default(cuid())
+  campusId  String
+  campus    Campus        @relation(fields: [campusId], references: [id])
+  invoiceNo String        @unique
+  amount    Float
+  dueDate   DateTime
+  paidAt    DateTime?
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id               String          @id @default(cuid())
+  entityType       String
+  entityId         String
+  action           String
+  oldValue         Json?
+  newValue         Json?
+  performedById    String
+  performedBy      User            @relation(fields: [performedById], references: [id])
+  sizeAssignmentId String?
+  sizeAssignment   SizeAssignment? @relation(fields: [sizeAssignmentId], references: [id])
+  createdAt        DateTime        @default(now())
+
+  @@index([entityType, entityId])
+  @@index([performedById])
+}
