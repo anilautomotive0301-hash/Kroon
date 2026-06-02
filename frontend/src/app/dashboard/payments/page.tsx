@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { campusApi, api } from '@/lib/api';
+import { campusApi, paymentsApi } from '@/lib/api';
 import type { Campus } from '@/types';
 import { ShoppingBag } from 'lucide-react';
 
@@ -18,8 +18,8 @@ export default function PaymentsPage() {
   useEffect(() => {
     if (!campusId) return;
     setLoading(true);
-    api.get(`/payments/campus/${campusId}/summary`)
-      .then((r) => setSummary(r.data))
+    paymentsApi.getCampusSummary(campusId)
+      .then(setSummary)
       .finally(() => setLoading(false));
   }, [campusId]);
 

@@ -1,17 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { campusApi } from '@/lib/api';
+import { campusApi, dispatchApi } from '@/lib/api';
 import type { Campus } from '@/types';
-import { Send, Package } from 'lucide-react';
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-700',
-  PACKED: 'bg-blue-100 text-blue-700',
-  DISPATCHED: 'bg-indigo-100 text-indigo-700',
-  DELIVERED: 'bg-green-100 text-green-700',
-  PARTIAL: 'bg-orange-100 text-orange-700',
-};
+import { Send } from 'lucide-react';
 
 export default function DispatchPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);

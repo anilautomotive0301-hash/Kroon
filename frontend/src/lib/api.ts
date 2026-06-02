@@ -114,6 +114,55 @@ export const inventoryApi = {
   getHistory: (id: string) => api.get(`/inventory/fabric/${id}/history`).then((r) => r.data),
 };
 
+// ─── Production ───────────────────────────────────────────────────────────────
+export const productionApi = {
+  getAssignments: (tailorId?: string) =>
+    api.get('/production/assignments', { params: { tailorId } }).then((r) => r.data),
+  createAssignment: (data: { tailorId: string; campusId: string; batchName: string; studentIds: string[] }) =>
+    api.post('/production/assignments', data).then((r) => r.data),
+  updateJobStatus: (jobId: string, status: string, qualityNotes?: string) =>
+    api.patch(`/production/jobs/${jobId}/status`, { status, qualityNotes }).then((r) => r.data),
+  reportRework: (jobId: string, reason: string, description: string) =>
+    api.post(`/production/jobs/${jobId}/rework`, { reason, description }).then((r) => r.data),
+  getTailorStats: (tailorId: string) =>
+    api.get(`/production/tailor/${tailorId}/stats`).then((r) => r.data),
+};
+
+// ─── Dispatch ─────────────────────────────────────────────────────────────────
+export const dispatchApi = {
+  getOrders: (campusId?: string) =>
+    api.get('/dispatch', { params: { campusId } }).then((r) => r.data),
+  getOrder: (id: string) =>
+    api.get(`/dispatch/${id}`).then((r) => r.data),
+  createOrder: (data: {
+    campusId: string;
+    studentItems: { studentId: string; uniformType: string; quantity: number }[];
+    vehicleNo?: string;
+    driverName?: string;
+    notes?: string;
+  }) => api.post('/dispatch', data).then((r) => r.data),
+  updateStatus: (id: string, status: string) =>
+    api.patch(`/dispatch/${id}/status`, { status }).then((r) => r.data),
+  markDelivered: (orderId: string, studentId: string) =>
+    api.patch(`/dispatch/${orderId}/delivered/${studentId}`).then((r) => r.data),
+};
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+export const paymentsApi = {
+  getStudentPayments: (studentId: string) =>
+    api.get(`/payments/student/${studentId}`).then((r) => r.data),
+  recordPayment: (studentId: string, data: { amount: number; method: string; transactionId?: string; notes?: string }) =>
+    api.post(`/payments/student/${studentId}`, data).then((r) => r.data),
+  getCampusSummary: (campusId: string) =>
+    api.get(`/payments/campus/${campusId}/summary`).then((r) => r.data),
+  getInvoices: (campusId?: string) =>
+    api.get('/payments/invoices', { params: { campusId } }).then((r) => r.data),
+  createInvoice: (data: { campusId: string; amount: number; dueDate: string }) =>
+    api.post('/payments/invoices', data).then((r) => r.data),
+  markInvoicePaid: (id: string) =>
+    api.patch(`/payments/invoices/${id}/paid`).then((r) => r.data),
+};
+
 // ─── Analytics ────────────────────────────────────────────────────────────────
 export const analyticsApi = {
   kpis: () => api.get('/analytics/kpis').then((r) => r.data),

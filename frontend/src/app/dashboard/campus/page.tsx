@@ -15,6 +15,7 @@ export default function CampusPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
     const t = setTimeout(() => {
       campusApi.list(search || undefined).then(setCampuses).finally(() => setLoading(false));
     }, 300);

@@ -123,7 +123,7 @@ export class StudentsService {
     fileName: string,
     userId: string,
   ) {
-    const rows = this.parseFile(fileBuffer, mimeType);
+    const rows = this.parseFile(fileBuffer, mimeType, fileName);
     if (!rows.length) throw new BadRequestException('No valid rows found in file');
 
     const batch = await this.prisma.importBatch.create({
@@ -184,8 +184,14 @@ export class StudentsService {
     });
   }
 
-  private parseFile(buffer: Buffer, mimeType: string): Record<string, any>[] {
-    if (mimeType === 'text/csv' || mimeType === 'application/csv') {
+  private parseFile(buffer: Buffer, mimeType: string, fileName = ''): Record<string, any>[] {
+    const isCsv =
+      mimeType === 'text/csv' ||
+      mimeType === 'application/csv' ||
+      mimeType === 'text/plain' ||
+      fileName.toLowerCase().endsWith('.csv');
+
+    if (isCsv) {
       const text = buffer.toString('utf-8');
       const result = Papa.parse(text, { header: true, skipEmptyLines: true });
       return result.data as Record<string, any>[];

@@ -42,10 +42,11 @@ export class MeasurementsService {
       where: { studentId: dto.studentId },
     });
 
+    const { studentId, ...sizeFields } = dto;
     const assignment = await this.prisma.sizeAssignment.upsert({
       where: { studentId: dto.studentId },
       create: { ...dto, assignedById },
-      update: { ...dto },
+      update: { ...sizeFields },
     });
 
     // Audit trail
@@ -93,6 +94,27 @@ export class MeasurementsService {
 
     const fromState = workflow.currentState;
     if (fromState === toState) return;
+
+    // Only advance forward through the linear workflow — never backwards.
+    // This prevents re-recording a measurement from resetting a student
+    // who is already in production, dispatch, or delivery.
+    const WORKFLOW_ORDER: WorkflowState[] = [
+      WorkflowState.REGISTERED,
+      WorkflowState.MEASUREMENT_PENDING,
+      WorkflowState.MEASURED,
+      WorkflowState.SIZE_ASSIGNED,
+      WorkflowState.PENDING_APPROVAL,
+      WorkflowState.APPROVED,
+      WorkflowState.FABRIC_ALLOCATED,
+      WorkflowState.TAILOR_ASSIGNED,
+      WorkflowState.STITCHING,
+      WorkflowState.QUALITY_CHECK,
+      WorkflowState.DISPATCHED,
+      WorkflowState.DELIVERED,
+    ];
+    const fromIdx = WORKFLOW_ORDER.indexOf(fromState);
+    const toIdx = WORKFLOW_ORDER.indexOf(toState);
+    if (fromIdx === -1 || toIdx === -1 || toIdx <= fromIdx) return;
 
     await this.prisma.$transaction([
       this.prisma.studentWorkflow.update({

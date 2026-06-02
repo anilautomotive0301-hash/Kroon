@@ -22,8 +22,8 @@ import { cn } from '@/lib/utils';
 const ALL_NAV_ITEMS = [
   { href: '/dashboard', label: 'Overview', icon: BarChart3, exact: true, roles: ['ADMIN', 'SUPERVISOR', 'FIELD_STAFF', 'TAILOR', 'ACCOUNTANT'] },
   { href: '/dashboard/campus', label: 'Campus', icon: Building2, roles: ['ADMIN', 'SUPERVISOR'] },
-  { href: '/dashboard/students', label: 'Students', icon: Users, roles: ['ADMIN', 'SUPERVISOR'] },
-  { href: '/dashboard/measurements', label: 'Measurements', icon: Ruler, roles: ['ADMIN', 'SUPERVISOR', 'FIELD_STAFF'] },
+  { href: '/dashboard/students', label: 'Students', icon: Users, roles: ['ADMIN', 'SUPERVISOR', 'FIELD_STAFF', 'TAILOR'] },
+  { href: '/dashboard/measurements', label: 'Measurements', icon: Ruler, roles: ['ADMIN', 'SUPERVISOR', 'FIELD_STAFF', 'TAILOR'] },
   { href: '/dashboard/workflow', label: 'Workflow', icon: CheckSquare, roles: ['ADMIN', 'SUPERVISOR'] },
   { href: '/dashboard/inventory', label: 'Inventory', icon: Package, roles: ['ADMIN', 'SUPERVISOR'] },
   { href: '/dashboard/production', label: 'Production', icon: Scissors, roles: ['ADMIN', 'SUPERVISOR', 'TAILOR'] },
@@ -36,7 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [navItems, setNavItems] = useState(ALL_NAV_ITEMS);
+  const [navItems, setNavItems] = useState<typeof ALL_NAV_ITEMS>([]);
 
   useEffect(() => {
     const stored = getStoredUser();

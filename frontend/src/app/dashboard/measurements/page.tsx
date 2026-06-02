@@ -88,7 +88,7 @@ export default function MeasurementsPage() {
             value={qrInput}
             onChange={(e) => setQrInput(e.target.value)}
             placeholder="Scan or type student QR code (e.g. KRN-ABCD1234)"
-            className="w-full pl-9 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-3 border border-gray-300 rounded-lg py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
           />
         </div>
