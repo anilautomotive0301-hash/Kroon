@@ -34,6 +34,7 @@ export default function MeasurementsPage() {
   const [lastRecordedAt, setLastRecordedAt] = useState<string | null>(null);
   const [sizeAssignedBy, setSizeAssignedBy] = useState<string | null>(null);
   const [loadingExisting, setLoadingExisting] = useState(false);
+  const [showBodyMeasurements, setShowBodyMeasurements] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -74,6 +75,7 @@ export default function MeasurementsPage() {
     setLastRecordedBy(null);
     setLastRecordedAt(null);
     setSizeAssignedBy(null);
+    setShowBodyMeasurements(false);
 
     // Load existing measurements & size assignment so all roles can see each other's entries
     setLoadingExisting(true);
@@ -94,13 +96,14 @@ export default function MeasurementsPage() {
         setNotes(latest.notes || '');
         setLastRecordedBy(latest.measuredBy?.name || null);
         setLastRecordedAt(latest.createdAt || null);
+        setShowBodyMeasurements(true); // already has body data — show it
       } else {
         setMeasurements({});
         setNotes('');
       }
 
-      // Pre-populate sizes
-      if (sizeData) {
+      // Pre-populate sizes; if no sizes exist auto-expand body measurements
+      if (sizeData && (sizeData.shirtSize || sizeData.trouserSize || sizeData.blazerSize)) {
         setSizes({
           shirtSize: sizeData.shirtSize || '',
           trouserSize: sizeData.trouserSize || '',
@@ -109,6 +112,7 @@ export default function MeasurementsPage() {
         setSizeAssignedBy(sizeData.assignedBy?.name || null);
       } else {
         setSizes({ shirtSize: '', trouserSize: '', blazerSize: '' });
+        setShowBodyMeasurements(true); // no sizes yet — show body measurements
       }
     } finally {
       setLoadingExisting(false);
@@ -124,6 +128,7 @@ export default function MeasurementsPage() {
     setLastRecordedBy(null);
     setLastRecordedAt(null);
     setSizeAssignedBy(null);
+    setShowBodyMeasurements(false);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -131,12 +136,17 @@ export default function MeasurementsPage() {
     if (!student) return;
     setSaving(true);
     try {
-      const measurementData: Record<string, any> = { studentId: student.id, notes: notes || undefined };
-      for (const field of MEASUREMENT_FIELDS) {
-        if (measurements[field.key]) measurementData[field.key] = parseFloat(measurements[field.key]);
+      // Save body measurements only if at least one field is filled
+      const hasBodyData = MEASUREMENT_FIELDS.some((f) => measurements[f.key]);
+      if (showBodyMeasurements && hasBodyData) {
+        const measurementData: Record<string, any> = { studentId: student.id, notes: notes || undefined };
+        for (const field of MEASUREMENT_FIELDS) {
+          if (measurements[field.key]) measurementData[field.key] = parseFloat(measurements[field.key]);
+        }
+        await measurementsApi.record(measurementData);
       }
-      await measurementsApi.record(measurementData);
 
+      // Always save sizes if any are selected
       if (sizes.shirtSize || sizes.trouserSize || sizes.blazerSize) {
         await measurementsApi.assignSize({ studentId: student.id, ...sizes });
       }
@@ -149,6 +159,7 @@ export default function MeasurementsPage() {
       setLastRecordedBy(null);
       setLastRecordedAt(null);
       setSizeAssignedBy(null);
+      setShowBodyMeasurements(false);
     } finally {
       setSaving(false);
     }
@@ -251,29 +262,12 @@ export default function MeasurementsPage() {
                 </div>
               )}
 
-              {/* Body measurements */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Body Measurements</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {MEASUREMENT_FIELDS.map(({ key, label }) => (
-                    <div key={key}>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={measurements[key] || ''}
-                        onChange={(e) => setMeasurements({ ...measurements, [key]: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-                      />
-                    </div>
-                  ))}
+              {/* ── Size Assignment (PRIMARY) ── */}
+              <div className="bg-white rounded-xl border-2 border-blue-200 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="text-sm font-semibold text-gray-800">Size Assignment</h3>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Priority</span>
                 </div>
-              </div>
-
-              {/* Size assignment */}
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Size Assignment</h3>
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { key: 'shirtSize' as const, label: 'Shirt Size' },
@@ -285,7 +279,7 @@ export default function MeasurementsPage() {
                       <select
                         value={sizes[key]}
                         onChange={(e) => setSizes({ ...sizes, [key]: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">— Select —</option>
                         {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -295,15 +289,50 @@ export default function MeasurementsPage() {
                 </div>
               </div>
 
-              {/* Notes */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                />
+              {/* ── Body Measurements (SECONDARY — toggle) ── */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowBodyMeasurements((v) => !v)}
+                  className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50"
+                >
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">Body Measurements</span>
+                    <span className="ml-2 text-xs text-gray-400">
+                      {showBodyMeasurements ? 'Required when size is unknown' : 'Tap to enter if size is not known'}
+                    </span>
+                  </div>
+                  <span className="text-gray-400 text-xs">{showBodyMeasurements ? '▲' : '▼'}</span>
+                </button>
+
+                {showBodyMeasurements && (
+                  <div className="px-5 pb-5 border-t border-gray-100">
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                      {MEASUREMENT_FIELDS.map(({ key, label }) => (
+                        <div key={key}>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={measurements[key] || ''}
+                            onChange={(e) => setMeasurements({ ...measurements, [key]: e.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        rows={2}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
